@@ -1,0 +1,10 @@
+{
+  "name": "livedocs-sync-server",
+  "version": "1.0.0",
+  "description": "Yjs WebSocket sync server for LiveDocs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  }
+}
