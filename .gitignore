@@ -25,6 +25,13 @@
   .DS_Store
   Thumbs.db
 
+
+  # MD files
+  CHECKPOINT.md
+  INTERVIEW-PREP.md
+  LiveDocs-Project-Spec.md
+
+  
   # Editor
   .vscode/
   .idea/
