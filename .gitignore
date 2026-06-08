@@ -32,3 +32,4 @@
   # Claude Code working files (session state, not part of the project)
   .claude/
 '@ | Out-File -Encoding utf8 .gitignore
+.claude/
