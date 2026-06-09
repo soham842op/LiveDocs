@@ -71,3 +71,33 @@
   pointer-events: none;
   height: 0;
 }
+
+/* ─── Collaboration cursor styles ───────────────────────────────────────────
+   CollaborationCursor injects a <span class="collaboration-cursor__caret">
+   for each remote user. The color comes from the user's awareness state and
+   is set as a CSS custom property on the element by the extension.
+   ──────────────────────────────────────────────────────────────────────── */
+.collaboration-cursor__caret {
+  border-left: 2px solid var(--color);
+  border-right: 2px solid var(--color);
+  margin-left: -1px;
+  margin-right: -1px;
+  position: relative;
+  word-break: normal;
+  pointer-events: none;
+}
+
+.collaboration-cursor__label {
+  border-radius: 3px 3px 3px 0;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  left: -1px;
+  line-height: 1.2;
+  padding: 0.1rem 0.3rem;
+  position: absolute;
+  top: -1.4em;
+  user-select: none;
+  white-space: nowrap;
+  background-color: var(--color);
+}
