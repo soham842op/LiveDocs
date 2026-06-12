@@ -3,8 +3,13 @@
 import dynamic from 'next/dynamic'
 
 // ssr: false must live in a Client Component in Next.js App Router.
-// This wrapper exists solely to apply that constraint while keeping
-// page.tsx a pure Server Component.
+// This wrapper applies that constraint while keeping doc/[id]/page.tsx a Server Component.
 const Editor = dynamic(() => import('./Editor'), { ssr: false })
 
-export default Editor
+interface EditorWrapperProps {
+  docId: string
+}
+
+export default function EditorWrapper({ docId }: EditorWrapperProps) {
+  return <Editor docId={docId} />
+}

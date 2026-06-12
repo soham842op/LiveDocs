@@ -9,14 +9,16 @@ import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import Toolbar from './Toolbar'
 
-const SYNC_SERVER = 'ws://localhost:1234'
-const ROOM = 'livedocs-default'
+const SYNC_SERVER = process.env.NEXT_PUBLIC_SYNC_SERVER || 'ws://localhost:1234'
 
-export default function Editor() {
-  // Synchronous lazy-ref initialization — safe because:
-  // 1. This component is loaded with ssr:false (never runs on the server)
-  // 2. reactStrictMode is disabled (no double-mount in dev)
-  // So these refs are created exactly once per mount and stay stable.
+interface EditorProps {
+  docId: string
+}
+
+export default function Editor({ docId }: EditorProps) {
+  // docId is the Postgres UUID for this document.
+  // It doubles as the y-websocket room name AND the S3 key prefix on the sync server.
+  // This means the room name, DB row, and S3 object are all keyed by the same identifier.
   const ydocRef = useRef<Y.Doc | null>(null)
   if (ydocRef.current === null) {
     ydocRef.current = new Y.Doc()
@@ -24,7 +26,7 @@ export default function Editor() {
 
   const providerRef = useRef<WebsocketProvider | null>(null)
   if (providerRef.current === null) {
-    providerRef.current = new WebsocketProvider(SYNC_SERVER, ROOM, ydocRef.current)
+    providerRef.current = new WebsocketProvider(SYNC_SERVER, docId, ydocRef.current)
   }
 
   useEffect(() => {
@@ -34,7 +36,6 @@ export default function Editor() {
     }
   }, [])
 
-  // useEditor called once with all extensions — no session state, no recreation
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [

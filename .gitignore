@@ -1,42 +1,39 @@
-  @'
-  # Dependencies
-  node_modules/
-  .pnp
-  .pnp.js
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
 
-  # Next.js build output
-  frontend/.next/
-  frontend/out/
+# Next.js build output
+frontend/.next/
+frontend/out/
 
-  # Python
-  __pycache__/
-  *.py[cod]
-  *.pyo
-  .venv/
-  venv/
-  *.egg-info/
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
 
-  # Env files — NEVER commit secrets
-  .env
-  .env.local
-  .env.*.local
+# Env files — NEVER commit secrets
+.env
+.env.local
+.env.*.local
 
-  # OS
-  .DS_Store
-  Thumbs.db
+# OS
+.DS_Store
+Thumbs.db
 
+# Editor
+.vscode/
+.idea/
 
-  # MD files
-  CHECKPOINT.md
-  INTERVIEW-PREP.md
-  LiveDocs-Project-Spec.md
-
-  
-  # Editor
-  .vscode/
-  .idea/
-
-  # Claude Code working files (session state, not part of the project)
-  .claude/
-'@ | Out-File -Encoding utf8 .gitignore
+# Claude Code session files — not part of the project
 .claude/
+frontend/CLAUDE.md
+frontend/AGENTS.md
+
+# Project learning docs (local only)
+CHECKPOINT.md
+INTERVIEW-PREP.md
+LiveDocs-Project-Spec.md

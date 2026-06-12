@@ -1,6 +1,12 @@
 const http = require('http')
 const WebSocket = require('ws')
-const { setupWSConnection } = require('y-websocket/bin/utils')
+const { setupWSConnection, setPersistence } = require('y-websocket/bin/utils')
+const { makePersistence } = require('./persistence')
+
+// Register the S3 + Postgres persistence layer before any connections arrive.
+// setPersistence is a global call — it wires into every room this server manages.
+// Must be called at startup (before any client connects).
+setPersistence(makePersistence())
 
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'application/json' })

@@ -4,11 +4,13 @@
   "description": "Yjs WebSocket sync server for LiveDocs",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node --watch index.js"
+    "start": "node --env-file=.env index.js",
+    "dev": "node --env-file=.env --watch index.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1068.0",
     "@y/websocket-server": "^0.1.5",
+    "pg": "^8.21.0",
     "y-websocket": "^2.1.0",
     "yjs": "^13.6.31"
   }
