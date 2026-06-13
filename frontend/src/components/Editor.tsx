@@ -14,9 +14,10 @@ const SYNC_SERVER = process.env.NEXT_PUBLIC_SYNC_SERVER || 'ws://localhost:1234'
 
 interface EditorProps {
   docId: string
+  onTextChange?: (text: string) => void
 }
 
-export default function Editor({ docId }: EditorProps) {
+export default function Editor({ docId, onTextChange }: EditorProps) {
   // By the time Editor mounts, the parent page has already confirmed token is set
   // (it renders null until mounted && token are both truthy). Safe to read here.
   const { token } = useAuth()
@@ -36,10 +37,18 @@ export default function Editor({ docId }: EditorProps) {
     })
   }
 
+  // Keep a ref to the latest onTextChange so the editor update listener
+  // never closes over a stale prop without recreating the listener.
+  const onTextChangeRef = useRef(onTextChange)
+  useEffect(() => { onTextChangeRef.current = onTextChange }, [onTextChange])
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   useEffect(() => {
     return () => {
       providerRef.current?.destroy()
       ydocRef.current?.destroy()
+      if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [])
 
@@ -54,6 +63,19 @@ export default function Editor({ docId }: EditorProps) {
       attributes: { class: 'tiptap max-w-prose mx-auto py-8 px-4' },
     },
   })
+
+  useEffect(() => {
+    if (!editor) return
+    const handleUpdate = () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      debounceRef.current = setTimeout(() => {
+        const text = editor.state.selection.$anchor.parent.textContent
+        if (text.trim()) onTextChangeRef.current?.(text)
+      }, 1500)
+    }
+    editor.on('update', handleUpdate)
+    return () => { editor.off('update', handleUpdate) }
+  }, [editor])
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden bg-white">

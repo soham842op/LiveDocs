@@ -12,6 +12,8 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from sse_starlette.sse import EventSourceResponse
+from llm import stream_suggestion
 
 app = FastAPI(title="LiveDocs Backend")
 
@@ -62,6 +64,11 @@ class AuthRequest(BaseModel):
 
 class ShareRequest(BaseModel):
     email: str
+
+
+class SuggestRequest(BaseModel):
+    text: str
+    doc_id: str
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -188,6 +195,18 @@ def share_document(
     return {"message": "Shared successfully"}
 
 
+@app.post("/suggest")
+async def suggest(req: SuggestRequest, payload: dict = Depends(verify_token)):
+    async def generate():
+        try:
+            async for token in stream_suggestion(req.text):
+                yield {"data": token}
+        except Exception as err:
+            print(f"[suggest] LLM error: {err}")
+
+    return EventSourceResponse(generate(), ping=None)
+
+
 @app.get("/health")
 def health():
-    return {"status": "ok", "checkpoint": 5}
+    return {"status": "ok", "checkpoint": 6}
