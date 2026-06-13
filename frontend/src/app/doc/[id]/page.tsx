@@ -1,27 +1,49 @@
-import { notFound } from 'next/navigation'
-import { getDocument, listDocuments } from '@/lib/documents'
+'use client'
+
+// Document editor page — client component for auth check + FastAPI fetch.
+// useParams() replaces the server-component `await params` pattern from CP4.
+
+import { useEffect, useState } from 'react'
+import { useRouter, useParams } from 'next/navigation'
+import { useAuth, apiFetch } from '@/context/AuthContext'
 import Sidebar from '@/components/Sidebar'
 import EditorWrapper from '@/components/EditorWrapper'
 
-// In Next.js 16, params is a Promise — must be awaited before use.
-export default async function DocPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
-  const { id } = await params
+type Doc = { id: string; title: string; updated_at: string }
 
-  // Fetch the specific document and the full list in parallel.
-  // notFound() renders the 404 page if the document doesn't exist.
-  const [doc, docs] = await Promise.all([getDocument(id), listDocuments()])
+export default function DocPage() {
+  const { token, mounted } = useAuth()
+  const router = useRouter()
+  const params = useParams()
+  const id = params.id as string
 
-  if (!doc) notFound()
+  const [doc, setDoc] = useState<Doc | null>(null)
+  const [accessDenied, setAccessDenied] = useState(false)
+
+  useEffect(() => {
+    if (!mounted) return
+    if (!token) { router.replace('/login'); return }
+
+    apiFetch(`/documents/${id}`, token)
+      .then(setDoc)
+      .catch(() => setAccessDenied(true))
+  }, [token, mounted, id, router])
+
+  if (!mounted || !token) return null
+
+  if (accessDenied) {
+    return (
+      <div className="flex h-full items-center justify-center text-gray-500 text-sm">
+        Document not found or you don&apos;t have access.
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-full overflow-hidden">
-      <Sidebar docs={docs} />
+      <Sidebar />
       <main className="flex flex-1 overflow-hidden">
-        <EditorWrapper docId={doc.id} />
+        {doc && <EditorWrapper docId={doc.id} />}
       </main>
     </div>
   )

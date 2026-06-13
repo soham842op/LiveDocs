@@ -1,14 +1,28 @@
-import { listDocuments } from '@/lib/documents'
+'use client'
+
+// Dashboard — client component so it can read auth state from localStorage
+// and redirect unauthenticated users without a server round-trip.
+
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/context/AuthContext'
 import Sidebar from '@/components/Sidebar'
 
-// Server Component — fetches the doc list at request time, passes to the Client Sidebar.
-// No editor here: / is the dashboard. The editor lives at /doc/[id].
-export default async function HomePage() {
-  const docs = await listDocuments()
+export default function HomePage() {
+  const { token, mounted } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (mounted && !token) router.replace('/login')
+  }, [token, mounted, router])
+
+  // `mounted` is false on first render (before localStorage is read).
+  // Rendering null prevents a flash of the page before the redirect fires.
+  if (!mounted || !token) return null
 
   return (
     <div className="flex h-full overflow-hidden">
-      <Sidebar docs={docs} />
+      <Sidebar />
       <main className="flex flex-1 items-center justify-center bg-white">
         <div className="text-center space-y-2">
           <p className="text-gray-500 text-sm">Select a document from the sidebar</p>

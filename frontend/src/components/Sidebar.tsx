@@ -1,30 +1,37 @@
 'use client'
 
-// Sidebar is a Client Component because:
-//   1. usePathname() (to highlight the active doc) is client-only.
-//   2. The New Document button calls a server action + router.push, which needs useRouter.
-//
-// Docs are fetched server-side by each page (Server Component) and passed as props.
-// This keeps the data fetch on the server while letting the sidebar respond to navigation.
+// Sidebar — no longer receives docs as props (CP4 pattern).
+// It fetches its own list from FastAPI on mount and on every pathname change
+// (navigation triggers a re-fetch so the list stays fresh after creating a doc).
+// useAuth() provides the token for API calls, user email for the footer, and logout.
 
+import { useEffect, useState, useTransition } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { useTransition } from 'react'
-import { createDocument } from '@/app/actions'
-import type { Doc } from '@/lib/supabase'
+import { useAuth, apiFetch } from '@/context/AuthContext'
 
-interface SidebarProps {
-  docs: Doc[]
-}
+type Doc = { id: string; title: string; updated_at: string }
 
-export default function Sidebar({ docs }: SidebarProps) {
+export default function Sidebar() {
+  const { token, user, logout } = useAuth()
   const pathname = usePathname()
   const router = useRouter()
+  const [docs, setDocs] = useState<Doc[]>([])
   const [isPending, startTransition] = useTransition()
 
+  useEffect(() => {
+    if (!token) return
+    apiFetch('/documents', token).then(setDocs).catch(console.error)
+  }, [token, pathname])
+
   function handleNewDoc() {
+    if (!token) return
     startTransition(async () => {
-      const { id } = await createDocument()
-      router.push(`/doc/${id}`)
+      try {
+        const { id } = await apiFetch('/documents', token, { method: 'POST' })
+        router.push(`/doc/${id}`)
+      } catch (err) {
+        console.error('Failed to create document:', err)
+      }
     })
   }
 
@@ -73,7 +80,17 @@ export default function Sidebar({ docs }: SidebarProps) {
       </div>
 
       <div className="px-3 py-2 border-t border-gray-200">
-        <p className="text-xs text-gray-400 text-center">CP4 — persistence</p>
+        {user && (
+          <p className="text-xs text-gray-500 truncate mb-1" title={user.email}>
+            {user.email}
+          </p>
+        )}
+        <button
+          onClick={logout}
+          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          Sign out
+        </button>
       </div>
     </aside>
   )

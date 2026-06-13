@@ -140,4 +140,4 @@ function makePersistence() {
   }
 }
 
-module.exports = { makePersistence }
+module.exports = { makePersistence, pool }

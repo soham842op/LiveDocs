@@ -8,6 +8,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import Toolbar from './Toolbar'
+import { useAuth } from '@/context/AuthContext'
 
 const SYNC_SERVER = process.env.NEXT_PUBLIC_SYNC_SERVER || 'ws://localhost:1234'
 
@@ -16,9 +17,10 @@ interface EditorProps {
 }
 
 export default function Editor({ docId }: EditorProps) {
-  // docId is the Postgres UUID for this document.
-  // It doubles as the y-websocket room name AND the S3 key prefix on the sync server.
-  // This means the room name, DB row, and S3 object are all keyed by the same identifier.
+  // By the time Editor mounts, the parent page has already confirmed token is set
+  // (it renders null until mounted && token are both truthy). Safe to read here.
+  const { token } = useAuth()
+
   const ydocRef = useRef<Y.Doc | null>(null)
   if (ydocRef.current === null) {
     ydocRef.current = new Y.Doc()
@@ -26,7 +28,12 @@ export default function Editor({ docId }: EditorProps) {
 
   const providerRef = useRef<WebsocketProvider | null>(null)
   if (providerRef.current === null) {
-    providerRef.current = new WebsocketProvider(SYNC_SERVER, docId, ydocRef.current)
+    // Pass token as a URL query param — y-websocket v3 appends params to the WS URL.
+    // The sync server reads ?token= before calling setupWSConnection.
+    // (Browser WS API has no custom headers, so query params are the standard workaround.)
+    providerRef.current = new WebsocketProvider(SYNC_SERVER, docId, ydocRef.current, {
+      params: token ? { token } : {},
+    })
   }
 
   useEffect(() => {

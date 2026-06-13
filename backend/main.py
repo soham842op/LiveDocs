@@ -1,10 +1,193 @@
-# FastAPI AI backend — stub for CP1.
-# Real endpoints (suggestions, inconsistency detection, Q&A) start in CP6.
-from fastapi import FastAPI
+from datetime import datetime, timedelta
+import os
+from dotenv import load_dotenv
 
-app = FastAPI(title="LiveDocs AI Backend")
+load_dotenv()
+
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+app = FastAPI(title="LiveDocs Backend")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+JWT_SECRET = os.environ["JWT_SECRET"]
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_HOURS = 24 * 7  # 7-day tokens
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+security = HTTPBearer()
+
+
+def get_db():
+    conn = psycopg2.connect(os.environ["DATABASE_URL"], cursor_factory=RealDictCursor)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+    try:
+        return jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+def create_token(user_id: str, email: str) -> str:
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+class AuthRequest(BaseModel):
+    email: str
+    password: str
+
+
+class ShareRequest(BaseModel):
+    email: str
+
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+
+@app.post("/auth/signup")
+def signup(req: AuthRequest, conn=Depends(get_db)):
+    if len(req.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    with conn.cursor() as cur:
+        cur.execute("SELECT id FROM users WHERE email = %s", (req.email,))
+        if cur.fetchone():
+            raise HTTPException(status_code=400, detail="Email already registered")
+        password_hash = pwd_context.hash(req.password)
+        cur.execute(
+            "INSERT INTO users (email, password_hash) VALUES (%s, %s) RETURNING id, email",
+            (req.email, password_hash),
+        )
+        user = cur.fetchone()
+        conn.commit()
+    token = create_token(str(user["id"]), user["email"])
+    return {"access_token": token, "user": {"id": str(user["id"]), "email": user["email"]}}
+
+
+@app.post("/auth/login")
+def login(req: AuthRequest, conn=Depends(get_db)):
+    with conn.cursor() as cur:
+        cur.execute("SELECT id, email, password_hash FROM users WHERE email = %s", (req.email,))
+        user = cur.fetchone()
+    if not user or not pwd_context.verify(req.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    token = create_token(str(user["id"]), user["email"])
+    return {"access_token": token, "user": {"id": str(user["id"]), "email": user["email"]}}
+
+
+@app.get("/auth/me")
+def me(payload: dict = Depends(verify_token)):
+    return {"id": payload["sub"], "email": payload["email"]}
+
+
+# ── Documents ─────────────────────────────────────────────────────────────────
+
+@app.get("/documents")
+def list_documents(payload: dict = Depends(verify_token), conn=Depends(get_db)):
+    user_id = payload["sub"]
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT DISTINCT d.id, d.title, d.updated_at
+            FROM documents d
+            LEFT JOIN document_collaborators dc ON dc.doc_id = d.id AND dc.user_id = %s::uuid
+            WHERE d.owner_id = %s::uuid OR dc.user_id = %s::uuid
+            ORDER BY d.updated_at DESC
+            """,
+            (user_id, user_id, user_id),
+        )
+        docs = cur.fetchall()
+    return [
+        {"id": str(d["id"]), "title": d["title"], "updated_at": d["updated_at"].isoformat()}
+        for d in docs
+    ]
+
+
+@app.post("/documents")
+def create_document(payload: dict = Depends(verify_token), conn=Depends(get_db)):
+    user_id = payload["sub"]
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO documents (title, owner_id) VALUES ('Untitled Document', %s::uuid) RETURNING id",
+            (user_id,),
+        )
+        doc = cur.fetchone()
+        conn.commit()
+    return {"id": str(doc["id"])}
+
+
+@app.get("/documents/{doc_id}")
+def get_document(doc_id: str, payload: dict = Depends(verify_token), conn=Depends(get_db)):
+    user_id = payload["sub"]
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT d.id, d.title, d.updated_at
+            FROM documents d
+            LEFT JOIN document_collaborators dc ON dc.doc_id = d.id AND dc.user_id = %s::uuid
+            WHERE d.id = %s::uuid
+              AND (d.owner_id = %s::uuid OR dc.user_id = %s::uuid OR d.owner_id IS NULL)
+            """,
+            (user_id, doc_id, user_id, user_id),
+        )
+        doc = cur.fetchone()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found or access denied")
+    return {"id": str(doc["id"]), "title": doc["title"], "updated_at": doc["updated_at"].isoformat()}
+
+
+@app.post("/documents/{doc_id}/share")
+def share_document(
+    doc_id: str,
+    req: ShareRequest,
+    payload: dict = Depends(verify_token),
+    conn=Depends(get_db),
+):
+    user_id = payload["sub"]
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT id FROM documents WHERE id = %s::uuid AND owner_id = %s::uuid",
+            (doc_id, user_id),
+        )
+        if not cur.fetchone():
+            raise HTTPException(status_code=403, detail="Only the owner can share this document")
+        cur.execute("SELECT id FROM users WHERE email = %s", (req.email,))
+        target = cur.fetchone()
+        if not target:
+            raise HTTPException(status_code=404, detail="User not found")
+        cur.execute(
+            """
+            INSERT INTO document_collaborators (doc_id, user_id)
+            VALUES (%s::uuid, %s::uuid)
+            ON CONFLICT DO NOTHING
+            """,
+            (doc_id, str(target["id"])),
+        )
+        conn.commit()
+    return {"message": "Shared successfully"}
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "checkpoint": 1}
+    return {"status": "ok", "checkpoint": 5}
