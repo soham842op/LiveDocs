@@ -51,7 +51,8 @@ export default function EditorWrapper({ docId }: EditorWrapperProps) {
         const { done, value } = await reader.read()
         if (done) break
         buffer += decoder.decode(value, { stream: true })
-        // SSE events are delimited by \n\n; keep the incomplete tail across reads.
+        // sse-starlette uses \r\n\r\n; normalize to \n\n before splitting.
+        buffer = buffer.replace(/\r\n/g, '\n')
         const parts = buffer.split('\n\n')
         buffer = parts.pop() ?? ''
         for (const part of parts) {

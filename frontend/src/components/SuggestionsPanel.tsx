@@ -17,7 +17,11 @@ export default function SuggestionsPanel({ suggestion, loading }: SuggestionsPan
         <p className="text-sm text-gray-400 italic">Generating…</p>
       )}
       {suggestion && (
-        <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{suggestion}</p>
+        <ol className="space-y-3 list-none">
+          {suggestion.split(/(?=\d+\. )/).filter(Boolean).map((item, i) => (
+            <li key={i} className="text-sm text-gray-700 leading-relaxed">{item.trim()}</li>
+          ))}
+        </ol>
       )}
     </div>
   )
