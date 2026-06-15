@@ -21,9 +21,10 @@ from observability import log_llm_event, log_feedback, cache_get, cache_set
 
 app = FastAPI(title="LiveDocs Backend")
 
+_origins = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
