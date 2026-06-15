@@ -33,6 +33,7 @@ export default function EditorWrapper({ docId }: EditorWrapperProps) {
   const [activeTab, setActiveTab]     = useState<Tab>('suggestions')
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [loading, setLoading]         = useState(false)
+  const requestIdRef = useRef<string | null>(null)
 
   const handleEditorReady = useCallback((editor: TiptapEditor) => {
     editorRef.current = editor
@@ -66,6 +67,7 @@ export default function EditorWrapper({ docId }: EditorWrapperProps) {
       })
       if (!res.ok) return
       const data = await res.json()
+      requestIdRef.current = data.request_id ?? null
       setSuggestions(data.suggestions ?? [])
     } catch (err: unknown) {
       if (err instanceof Error && err.name !== 'AbortError') {
@@ -76,14 +78,30 @@ export default function EditorWrapper({ docId }: EditorWrapperProps) {
     }
   }, [docId, token, activeTab])
 
+  const fireFeedback = useCallback((eventType: 'accept' | 'dismiss_all', acceptedOption?: string) => {
+    const reqId = requestIdRef.current
+    if (!reqId) return
+    requestIdRef.current = null
+    fetch(`${API}/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ request_id: reqId, event_type: eventType, doc_id: docId, accepted_option: acceptedOption }),
+    }).catch(() => {})
+  }, [token, docId])
+
   const handleAccept = useCallback((suggestion: Suggestion) => {
     editorRef.current?.chain().focus().insertContent(' ' + suggestion.option).run()
+    fireFeedback('accept', suggestion.option)
     setSuggestions([])
-  }, [])
+  }, [fireFeedback])
 
   const handleDismiss = useCallback((index: number) => {
-    setSuggestions(prev => prev.filter((_, i) => i !== index))
-  }, [])
+    setSuggestions(prev => {
+      const next = prev.filter((_, i) => i !== index)
+      if (next.length === 0) fireFeedback('dismiss_all')
+      return next
+    })
+  }, [fireFeedback])
 
   return (
     <div className="flex flex-1 overflow-hidden">

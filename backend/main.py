@@ -1,5 +1,8 @@
 from datetime import datetime, timedelta
+import hashlib
 import os
+import time
+import uuid
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,6 +17,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from llm import get_suggestions, find_inconsistencies, generate_answer
 from embeddings import store_chunks, retrieve_similar
+from observability import log_llm_event, log_feedback, cache_get, cache_set
 
 app = FastAPI(title="LiveDocs Backend")
 
@@ -87,6 +91,13 @@ class InconsistencyRequest(BaseModel):
 
 class QARequest(BaseModel):
     question: str
+
+
+class FeedbackRequest(BaseModel):
+    request_id: str
+    event_type: str  # 'accept' or 'dismiss_all'
+    doc_id: str | None = None
+    accepted_option: str | None = None
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -228,13 +239,51 @@ def _assert_doc_access(cur, doc_id: str, user_id: str) -> None:
 
 
 @app.post("/suggest")
-async def suggest(req: SuggestRequest, payload: dict = Depends(verify_token)):
+async def suggest(req: SuggestRequest, payload: dict = Depends(verify_token), conn=Depends(get_db)):
+    request_id = str(uuid.uuid4())
+    user_id = payload["sub"]
+    text_hash = hashlib.sha256(req.text.strip().encode()).hexdigest()
+
+    cached = cache_get(conn, text_hash)
+    if cached is not None:
+        return {"request_id": request_id, "suggestions": cached, "cache_hit": True}
+
+    t0 = time.monotonic()
     try:
-        suggestions = await get_suggestions(req.text)
-        return {"suggestions": [s.model_dump() for s in suggestions]}
+        suggestions, usage = await get_suggestions(req.text)
     except Exception as err:
         print(f"[suggest] LLM error: {err}")
         raise HTTPException(status_code=502, detail="LLM unavailable")
+    latency_ms = int((time.monotonic() - t0) * 1000)
+
+    serialized = [s.model_dump() for s in suggestions]
+    cache_set(conn, text_hash, serialized)
+    log_llm_event(
+        conn,
+        request_id=request_id,
+        endpoint="suggest",
+        model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
+        latency_ms=latency_ms,
+        user_id=user_id,
+        prompt_tokens=usage.get("prompt_tokens"),
+        completion_tokens=usage.get("completion_tokens"),
+    )
+    return {"request_id": request_id, "suggestions": serialized, "cache_hit": False}
+
+
+@app.post("/feedback")
+def feedback(req: FeedbackRequest, payload: dict = Depends(verify_token), conn=Depends(get_db)):
+    if req.event_type not in ("accept", "dismiss_all"):
+        raise HTTPException(status_code=400, detail="event_type must be 'accept' or 'dismiss_all'")
+    log_feedback(
+        conn,
+        request_id=req.request_id,
+        event_type=req.event_type,
+        doc_id=req.doc_id,
+        user_id=payload["sub"],
+        accepted_option=req.accepted_option,
+    )
+    return {"ok": True}
 
 
 @app.post("/embed/{doc_id}")
@@ -297,4 +346,4 @@ async def qa(
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "checkpoint": 8}
+    return {"status": "ok", "checkpoint": 9}

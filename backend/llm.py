@@ -106,7 +106,7 @@ async def generate_answer(question: str, chunks: list[dict]) -> dict:
     return {"answer": data.get("answer", ""), "citations": citations}
 
 
-async def get_suggestions(text: str, retries: int = 2) -> list[Suggestion]:
+async def get_suggestions(text: str, retries: int = 2) -> tuple[list[Suggestion], dict]:
     last_err: Exception | None = None
     for attempt in range(retries + 1):
         try:
@@ -119,14 +119,17 @@ async def get_suggestions(text: str, retries: int = 2) -> list[Suggestion]:
                 max_tokens=500,
             )
             content = response.choices[0].message.content or ""
-            # Strip markdown code fences if model wraps JSON anyway
             content = content.strip()
             if content.startswith("```"):
                 content = content.split("```")[1]
                 if content.startswith("json"):
                     content = content[4:]
             data = json.loads(content)
-            return [Suggestion(**item) for item in data]
+            usage = {
+                "prompt_tokens": response.usage.prompt_tokens if response.usage else None,
+                "completion_tokens": response.usage.completion_tokens if response.usage else None,
+            }
+            return [Suggestion(**item) for item in data], usage
         except (json.JSONDecodeError, ValidationError, Exception) as err:
             last_err = err
             if attempt < retries:
