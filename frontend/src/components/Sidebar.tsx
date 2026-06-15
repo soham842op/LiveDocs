@@ -1,10 +1,5 @@
 'use client'
 
-// Sidebar — no longer receives docs as props (CP4 pattern).
-// It fetches its own list from FastAPI on mount and on every pathname change
-// (navigation triggers a re-fetch so the list stays fresh after creating a doc).
-// useAuth() provides the token for API calls, user email for the footer, and logout.
-
 import { useEffect, useState, useTransition } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth, apiFetch } from '@/context/AuthContext'
@@ -36,13 +31,13 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-64 shrink-0 border-r border-gray-200 flex flex-col bg-gray-50 overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-        <h1 className="font-semibold text-gray-900 text-base tracking-tight">LiveDocs</h1>
+    <aside className="w-64 shrink-0 border-r border-[#3a3a3a] flex flex-col bg-[#252525] overflow-hidden">
+      <div className="px-4 py-3 border-b border-[#3a3a3a] flex items-center justify-between">
+        <h1 className="font-semibold text-[#e8e8e8] text-base tracking-tight">LiveDocs</h1>
         <button
           onClick={handleNewDoc}
           disabled={isPending}
-          className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
+          className="text-xs text-[#4fb3f6] hover:text-white font-medium disabled:opacity-50 transition-colors"
           title="New document"
         >
           {isPending ? '…' : '+ New'}
@@ -50,12 +45,12 @@ export default function Sidebar() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-3">
-        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest px-2 mb-2">
+        <p className="text-[11px] font-semibold text-[#666] uppercase tracking-widest px-2 mb-2">
           Documents
         </p>
 
         {docs.length === 0 && (
-          <p className="text-xs text-gray-400 px-2">No documents yet</p>
+          <p className="text-xs text-[#666] px-2">No documents yet</p>
         )}
 
         <div className="space-y-0.5">
@@ -67,8 +62,8 @@ export default function Sidebar() {
                 href={`/doc/${doc.id}`}
                 className={`flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors ${
                   isActive
-                    ? 'bg-blue-50 text-blue-700 font-medium'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    ? 'bg-[#0e3a5c] text-[#4fb3f6] font-medium'
+                    : 'text-[#cccccc] hover:bg-[#333333]'
                 }`}
               >
                 <DocIcon />
@@ -79,15 +74,15 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <div className="px-3 py-2 border-t border-gray-200">
+      <div className="px-3 py-2 border-t border-[#3a3a3a]">
         {user && (
-          <p className="text-xs text-gray-500 truncate mb-1" title={user.email}>
+          <p className="text-xs text-[#888] truncate mb-1" title={user.email}>
             {user.email}
           </p>
         )}
         <button
           onClick={logout}
-          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          className="text-xs text-[#666] hover:text-[#cccccc] transition-colors"
         >
           Sign out
         </button>

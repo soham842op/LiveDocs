@@ -11,11 +11,23 @@ type ButtonProps = {
   title: string
 }
 
+const FONTS = [
+  { label: 'Default',          value: '' },
+  { label: 'Arial',            value: 'Arial, sans-serif' },
+  { label: 'Georgia',          value: 'Georgia, serif' },
+  { label: 'Times New Roman',  value: "'Times New Roman', serif" },
+  { label: 'Courier New',      value: "'Courier New', monospace" },
+  { label: 'Verdana',          value: 'Verdana, sans-serif' },
+  { label: 'Trebuchet MS',     value: "'Trebuchet MS', sans-serif" },
+  { label: 'Garamond',         value: 'Garamond, serif' },
+]
+
+const SIZES = ['8pt','9pt','10pt','11pt','12pt','14pt','16pt','18pt','20pt','24pt','28pt','36pt','48pt','72pt']
+
 function ToolbarButton({ onClick, isActive, label, title }: ButtonProps) {
   return (
     <button
       onMouseDown={(e) => {
-        // Prevent the editor from losing focus on toolbar click
         e.preventDefault()
         onClick()
       }}
@@ -24,8 +36,8 @@ function ToolbarButton({ onClick, isActive, label, title }: ButtonProps) {
       className={`
         px-2.5 py-1 rounded text-sm font-medium transition-colors
         ${isActive
-          ? 'bg-gray-900 text-white'
-          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
+          ? 'bg-[#0078d4] text-white'
+          : 'text-[#cccccc] hover:bg-[#3a3a3a] hover:text-white'}
       `}
     >
       {label}
@@ -34,14 +46,57 @@ function ToolbarButton({ onClick, isActive, label, title }: ButtonProps) {
 }
 
 function Divider() {
-  return <div className="w-px h-5 bg-gray-200 mx-1" />
+  return <div className="w-px h-5 bg-[#3a3a3a] mx-1" />
 }
+
+const selectClass = 'text-xs bg-[#3a3a3a] text-[#e0e0e0] border border-[#555] rounded px-1.5 py-1 outline-none cursor-pointer hover:border-[#888] transition-colors'
 
 export default function Toolbar({ editor }: Props) {
   if (!editor) return null
 
+  const currentFont = editor.getAttributes('fontFamily').fontFamily || ''
+  const currentSize = editor.getAttributes('fontSize').fontSize || ''
+
   return (
-    <div className="flex items-center gap-0.5 px-4 py-2 border-b border-gray-200 bg-white sticky top-0 z-10">
+    <div className="flex flex-wrap items-center gap-0.5 px-4 py-2 border-b border-[#3a3a3a] bg-[#2b2b2b] sticky top-0 z-10">
+      {/* Font family */}
+      <select
+        value={currentFont}
+        onChange={(e) => {
+          e.target.value
+            ? editor.chain().focus().setFontFamily(e.target.value).run()
+            : editor.chain().focus().unsetFontFamily().run()
+        }}
+        className={`${selectClass} w-36`}
+        style={{ fontFamily: currentFont || 'inherit' }}
+        title="Font family"
+      >
+        {FONTS.map(f => (
+          <option key={f.value} value={f.value} style={{ fontFamily: f.value || 'inherit' }}>
+            {f.label}
+          </option>
+        ))}
+      </select>
+
+      {/* Font size */}
+      <select
+        value={currentSize}
+        onChange={(e) => {
+          e.target.value
+            ? editor.chain().focus().setFontSize(e.target.value).run()
+            : editor.chain().focus().unsetFontSize().run()
+        }}
+        className={`${selectClass} w-16`}
+        title="Font size"
+      >
+        <option value="">Size</option>
+        {SIZES.map(s => (
+          <option key={s} value={s}>{s}</option>
+        ))}
+      </select>
+
+      <Divider />
+
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleBold().run()}
         isActive={editor.isActive('bold')}

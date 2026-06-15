@@ -33,7 +33,7 @@ export default function DocPage() {
 
   if (accessDenied) {
     return (
-      <div className="flex h-full items-center justify-center text-gray-500 text-sm">
+      <div className="flex h-full items-center justify-center bg-[#1f1f1f] text-[#888] text-sm">
         Document not found or you don&apos;t have access.
       </div>
     )

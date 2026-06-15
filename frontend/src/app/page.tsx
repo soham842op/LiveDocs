@@ -23,10 +23,10 @@ export default function HomePage() {
   return (
     <div className="flex h-full overflow-hidden">
       <Sidebar />
-      <main className="flex flex-1 items-center justify-center bg-white">
+      <main className="flex flex-1 items-center justify-center bg-[#1f1f1f]">
         <div className="text-center space-y-2">
-          <p className="text-gray-500 text-sm">Select a document from the sidebar</p>
-          <p className="text-gray-400 text-xs">or click &ldquo;+ New&rdquo; to create one</p>
+          <p className="text-[#888] text-sm">Select a document from the sidebar</p>
+          <p className="text-[#555] text-xs">or click &ldquo;+ New&rdquo; to create one</p>
         </div>
       </main>
     </div>
