@@ -6,7 +6,7 @@ import type { Editor as TiptapEditor } from '@tiptap/core'
 import SuggestionsPanel from './SuggestionsPanel'
 import InconsistenciesPanel from './InconsistenciesPanel'
 import QAPanel from './QAPanel'
-import { useAuth } from '@/context/AuthContext'
+import { useAuth, apiFetch } from '@/context/AuthContext'
 import { extractSections } from '@/lib/extract-sections'
 
 const Editor = dynamic(() => import('./Editor'), { ssr: false })
@@ -23,9 +23,13 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'ask',         label: 'Ask'     },
 ]
 
-interface EditorWrapperProps { docId: string }
+interface EditorWrapperProps {
+  docId: string
+  title?: string
+  importContent?: string | null
+}
 
-export default function EditorWrapper({ docId }: EditorWrapperProps) {
+export default function EditorWrapper({ docId, title, importContent }: EditorWrapperProps) {
   const { token } = useAuth()
   const editorRef = useRef<TiptapEditor | null>(null)
   const abortRef  = useRef<AbortController | null>(null)
@@ -34,6 +38,27 @@ export default function EditorWrapper({ docId }: EditorWrapperProps) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [loading, setLoading]         = useState(false)
   const requestIdRef = useRef<string | null>(null)
+
+  const [localTitle, setLocalTitle] = useState(title ?? 'Untitled Document')
+  const renameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function handleTitleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value
+    setLocalTitle(val)
+    if (renameTimerRef.current) clearTimeout(renameTimerRef.current)
+    renameTimerRef.current = setTimeout(async () => {
+      const finalTitle = val.trim() || 'Untitled Document'
+      try {
+        await apiFetch(`/documents/${docId}`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({ title: finalTitle }),
+        })
+        window.dispatchEvent(new CustomEvent('docs-changed'))
+      } catch (err) {
+        console.error('Failed to rename:', err)
+      }
+    }, 800)
+  }
 
   const handleEditorReady = useCallback((editor: TiptapEditor) => {
     editorRef.current = editor
@@ -105,11 +130,22 @@ export default function EditorWrapper({ docId }: EditorWrapperProps) {
 
   return (
     <div className="flex flex-1 overflow-hidden">
-      <Editor
-        docId={docId}
-        onTextChange={handleTextChange}
-        onEditorReady={handleEditorReady}
-      />
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="bg-[#1f1f1f] px-16 pt-6 pb-3 flex-shrink-0">
+          <input
+            value={localTitle}
+            onChange={handleTitleChange}
+            className="w-full max-w-2xl mx-auto block text-2xl font-bold bg-transparent text-[#e8e8e8] outline-none placeholder:text-[#555] border-none"
+            placeholder="Untitled Document"
+          />
+        </div>
+        <Editor
+          docId={docId}
+          onTextChange={handleTextChange}
+          onEditorReady={handleEditorReady}
+          importContent={importContent}
+        />
+      </div>
 
       {/* Right panel — always visible, tabs switch the content */}
       <div className="flex flex-col w-72 flex-shrink-0 border-l border-[#3a3a3a] bg-[#252525] overflow-hidden">

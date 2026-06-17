@@ -18,9 +18,20 @@ interface EditorProps {
   docId: string
   onTextChange?: (text: string) => void
   onEditorReady?: (editor: TiptapEditor) => void
+  importContent?: string | null
 }
 
-export default function Editor({ docId, onTextChange, onEditorReady }: EditorProps) {
+function plainTextToHtml(text: string): string {
+  return text.trim()
+    .split(/\n{2,}/)
+    .filter(p => p.trim())
+    .map(p =>
+      `<p>${p.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</p>`
+    )
+    .join('')
+}
+
+export default function Editor({ docId, onTextChange, onEditorReady, importContent }: EditorProps) {
   // By the time Editor mounts, the parent page has already confirmed token is set
   // (it renders null until mounted && token are both truthy). Safe to read here.
   const { token } = useAuth()
@@ -75,6 +86,28 @@ export default function Editor({ docId, onTextChange, onEditorReady }: EditorPro
     if (!editor) return
     onEditorReady?.(editor)
   }, [editor]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Gate import on WS sync so we don't race SyncStep2.
+  // Empty-fragment check makes it idempotent on reconnects.
+  useEffect(() => {
+    if (!editor || !importContent) return
+    const provider = providerRef.current!
+    const fragment = ydocRef.current!.getXmlFragment('default')
+
+    function seed() {
+      if (fragment.length === 0) {
+        editor!.commands.setContent(plainTextToHtml(importContent!))
+      }
+    }
+
+    if (provider.synced) {
+      seed()
+    } else {
+      const onSync = (isSynced: boolean) => { if (isSynced) seed() }
+      provider.on('sync', onSync)
+      return () => provider.off('sync', onSync)
+    }
+  }, [editor, importContent]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!editor) return

@@ -71,6 +71,10 @@ class ShareRequest(BaseModel):
     email: str
 
 
+class RenameRequest(BaseModel):
+    title: str
+
+
 class SuggestRequest(BaseModel):
     text: str
     doc_id: str
@@ -223,6 +227,46 @@ def share_document(
         )
         conn.commit()
     return {"message": "Shared successfully"}
+
+
+@app.patch("/documents/{doc_id}")
+def rename_document(
+    doc_id: str,
+    req: RenameRequest,
+    payload: dict = Depends(verify_token),
+    conn=Depends(get_db),
+):
+    user_id = payload["sub"]
+    title = req.title.strip() or "Untitled Document"
+    with conn.cursor() as cur:
+        _assert_doc_access(cur, doc_id, user_id)
+        cur.execute(
+            "UPDATE documents SET title = %s, updated_at = NOW() WHERE id = %s::uuid",
+            (title, doc_id),
+        )
+        conn.commit()
+    return {"title": title}
+
+
+@app.delete("/documents/{doc_id}")
+def delete_document(
+    doc_id: str,
+    payload: dict = Depends(verify_token),
+    conn=Depends(get_db),
+):
+    # Only the owner can delete — collaborators can rename but not destroy.
+    # ON DELETE CASCADE handles document_collaborators, document_chunks, document_snapshots.
+    # S3 snapshot is left as an inert orphan; the DB row deletion revokes all WS auth.
+    user_id = payload["sub"]
+    with conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM documents WHERE id = %s::uuid AND (owner_id = %s::uuid OR owner_id IS NULL)",
+            (doc_id, user_id),
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=403, detail="Not found or not the owner")
+        conn.commit()
+    return {"deleted": True}
 
 
 def _assert_doc_access(cur, doc_id: str, user_id: str) -> None:

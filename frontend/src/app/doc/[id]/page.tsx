@@ -19,13 +19,21 @@ export default function DocPage() {
 
   const [doc, setDoc] = useState<Doc | null>(null)
   const [accessDenied, setAccessDenied] = useState(false)
+  const [importContent, setImportContent] = useState<string | null>(null)
 
   useEffect(() => {
     if (!mounted) return
     if (!token) { router.replace('/login'); return }
 
     apiFetch(`/documents/${id}`, token)
-      .then(setDoc)
+      .then((d: Doc) => {
+        setDoc(d)
+        const pending = sessionStorage.getItem(`import:${d.id}`)
+        if (pending) {
+          setImportContent(pending)
+          sessionStorage.removeItem(`import:${d.id}`)
+        }
+      })
       .catch(() => setAccessDenied(true))
   }, [token, mounted, id, router])
 
@@ -43,7 +51,14 @@ export default function DocPage() {
     <div className="flex h-full overflow-hidden">
       <Sidebar />
       <main className="flex flex-1 overflow-hidden">
-        {doc && <EditorWrapper docId={doc.id} />}
+        {doc && (
+          <EditorWrapper
+            key={doc.id}
+            docId={doc.id}
+            title={doc.title}
+            importContent={importContent}
+          />
+        )}
       </main>
     </div>
   )

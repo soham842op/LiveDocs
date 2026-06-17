@@ -52,7 +52,7 @@ async def find_inconsistencies(sections_text: str) -> list[InconsistencyFinding]
             {"role": "system", "content": _INCONSISTENCY_SYSTEM},
             {"role": "user", "content": sections_text},
         ],
-        max_tokens=800,
+        max_tokens=2000,
     )
     content = (response.choices[0].message.content or "[]").strip()
     if content.startswith("```"):
@@ -85,7 +85,7 @@ async def generate_answer(question: str, chunks: list[dict]) -> dict:
             {"role": "system", "content": _QA_SYSTEM},
             {"role": "user", "content": user_msg},
         ],
-        max_tokens=600,
+        max_tokens=2000,
     )
     content = (response.choices[0].message.content or "{}").strip()
     if content.startswith("```"):
@@ -116,7 +116,7 @@ async def get_suggestions(text: str, retries: int = 2) -> tuple[list[Suggestion]
                     {"role": "system", "content": _SYSTEM},
                     {"role": "user", "content": text},
                 ],
-                max_tokens=500,
+                max_tokens=2000,
             )
             content = response.choices[0].message.content or ""
             content = content.strip()
