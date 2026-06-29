@@ -13,7 +13,11 @@ export default function Sidebar() {
   const [docs, setDocs] = useState<Doc[]>([])
   const [isPending, startTransition] = useTransition()
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [sharingDocId, setSharingDocId] = useState<string | null>(null)
+  const [shareEmail, setShareEmail] = useState('')
+  const [shareStatus, setShareStatus] = useState<'idle' | 'ok' | 'err'>('idle')
   const uploadRef = useRef<HTMLInputElement>(null)
+  const shareInputRef = useRef<HTMLInputElement>(null)
 
   function fetchDocs() {
     if (!token) return
@@ -50,6 +54,28 @@ export default function Sidebar() {
       if (isActive) router.push('/')
     } catch (err) {
       console.error('Delete failed:', err)
+    }
+  }
+
+  function openShare(docId: string) {
+    setSharingDocId(docId)
+    setShareEmail('')
+    setShareStatus('idle')
+    setTimeout(() => shareInputRef.current?.focus(), 50)
+  }
+
+  async function handleShare(e: React.FormEvent, docId: string) {
+    e.preventDefault()
+    if (!token || !shareEmail.trim()) return
+    try {
+      await apiFetch(`/documents/${docId}/share`, token, {
+        method: 'POST',
+        body: JSON.stringify({ email: shareEmail.trim() }),
+      })
+      setShareStatus('ok')
+      setTimeout(() => { setSharingDocId(null); setShareStatus('idle') }, 1500)
+    } catch {
+      setShareStatus('err')
     }
   }
 
@@ -114,6 +140,7 @@ export default function Sidebar() {
         <div className="space-y-0.5">
           {docs.map((doc) => {
             const isActive = pathname === `/doc/${doc.id}`
+            const isSharing = sharingDocId === doc.id
             return (
               <div
                 key={doc.id}
@@ -123,7 +150,7 @@ export default function Sidebar() {
               >
                 <a
                   href={`/doc/${doc.id}`}
-                  className={`flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors pr-8 ${
+                  className={`flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors pr-14 ${
                     isActive
                       ? 'bg-[#0e3a5c] text-[#4fb3f6] font-medium'
                       : 'text-[#cccccc] hover:bg-[#333333]'
@@ -133,13 +160,54 @@ export default function Sidebar() {
                   <span className="truncate">{doc.title}</span>
                 </a>
                 {hoveredId === doc.id && (
-                  <button
-                    onClick={(e) => { e.preventDefault(); handleDelete(doc.id, isActive) }}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-[#555] hover:text-[#e05555] transition-colors rounded"
-                    title="Delete document"
+                  <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                    <button
+                      onClick={(e) => { e.preventDefault(); openShare(doc.id) }}
+                      className="p-1 text-[#555] hover:text-[#4fb3f6] transition-colors rounded"
+                      title="Share document"
+                    >
+                      <ShareIcon />
+                    </button>
+                    <button
+                      onClick={(e) => { e.preventDefault(); handleDelete(doc.id, isActive) }}
+                      className="p-1 text-[#555] hover:text-[#e05555] transition-colors rounded"
+                      title="Delete document"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                )}
+                {isSharing && (
+                  <form
+                    onSubmit={(e) => handleShare(e, doc.id)}
+                    className="mt-1 px-2 pb-1"
                   >
-                    <TrashIcon />
-                  </button>
+                    <div className="flex gap-1">
+                      <input
+                        ref={shareInputRef}
+                        type="email"
+                        value={shareEmail}
+                        onChange={(e) => { setShareEmail(e.target.value); setShareStatus('idle') }}
+                        placeholder="Email to share with"
+                        className="flex-1 min-w-0 text-xs bg-[#1a1a1a] border border-[#444] rounded px-2 py-1 text-[#ccc] placeholder-[#555] focus:outline-none focus:border-[#4fb3f6]"
+                      />
+                      <button
+                        type="submit"
+                        className="text-xs px-2 py-1 bg-[#4fb3f6] text-black rounded font-medium hover:bg-[#7cc6fa] transition-colors shrink-0"
+                      >
+                        {shareStatus === 'ok' ? '✓' : shareStatus === 'err' ? '!' : 'Share'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSharingDocId(null)}
+                        className="text-xs px-1.5 py-1 text-[#666] hover:text-[#ccc] transition-colors"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {shareStatus === 'ok' && <p className="text-[10px] text-green-400 mt-0.5">Shared!</p>}
+                    {shareStatus === 'err' && <p className="text-[10px] text-red-400 mt-0.5">User not found or not owner</p>}
+                  </form>
                 )}
               </div>
             )
@@ -168,6 +236,14 @@ function DocIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z" />
+    </svg>
+  )
+}
+
+function ShareIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
     </svg>
   )
 }
